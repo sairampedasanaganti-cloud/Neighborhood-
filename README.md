@@ -3,6 +3,8 @@
 > **Connect. Help. Belong.**  
 > *"Your neighborhood is more than just the place where you live. Sometimes you need a helping hand. Sometimes you just need someone to be there. NeighborLink connects you with people in your community for both."*
 
+🚀 **Live Application:** [https://neighborhood-gamma.vercel.app/](https://neighborhood-gamma.vercel.app/)
+
 ---
 
 ## 🌟 The Core Concept: Mutual-Aid Community Members
@@ -199,7 +201,7 @@ npm test
 
 ### Quick Evaluator Demo Logins
 For quick evaluation without needing to register new Firebase accounts:
-1. Open `http://localhost:5173/login`.
+1. Open the live app at [https://neighborhood-gamma.vercel.app/login](https://neighborhood-gamma.vercel.app/login) (or http://localhost:5173/login locally).
 2. Click any of the **Quick Demo Login** persona chips:
    - **Admin**: `admin@neighborlink.demo` (Full platform governance and moderation)
    - **Senior (68y)**: `senior@neighborlink.demo` (Demonstrates Senior Accessible Mode)
