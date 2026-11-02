@@ -3,7 +3,9 @@
  * Wires together security middleware, routes, and centralized error handling.
  */
 const dns = require("dns");
-dns.setServers(["8.8.8.8"]);
+if (!process.env.VERCEL) {
+  dns.setServers(["8.8.8.8"]);
+}
 
 require('dotenv').config();
 
@@ -76,6 +78,18 @@ app.use('/api', limiter);
 
 // ---- Health check ----
 app.get('/api/health', (req, res) => res.json({ success: true, message: 'NeighborLink API is running.' }));
+
+// Ensure DB connected on serverless invocations
+app.use(async (req, res, next) => {
+  if (require('mongoose').connection.readyState !== 1) {
+    try {
+      await connectDB();
+    } catch (e) {
+      return next(e);
+    }
+  }
+  next();
+});
 
 // ---- Routes ----
 app.use('/api/users', userRoutes);
