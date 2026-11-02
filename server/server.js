@@ -1,4 +1,4 @@
-/**
+﻿/**
  * NeighborLink backend entry point.
  * Wires together security middleware, routes, and centralized error handling.
  */
@@ -90,11 +90,13 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-async function start() {
-  await connectDB();
-  app.listen(PORT, () => console.log(`[Server] NeighborLink API listening on port ${PORT}`));
+// On Vercel, don't call listen() -- the platform handles it
+if (!process.env.VERCEL) {
+  async function start() {
+    await connectDB();
+    app.listen(PORT, () => console.log(`[Server] NeighborLink API listening on port ${PORT}`));
+  }
+  start();
 }
 
-start();
-
-module.exports = app; // exported for supertest in tests/
+module.exports = app; // exported for supertest & Vercel serverless
