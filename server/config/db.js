@@ -1,14 +1,11 @@
-/**
+﻿/**
  * MongoDB connection setup using Mongoose.
  * Supports:
- * 1. Offline Mode (USE_OFFLINE_DB=true):
- *    - Instant local connection (zero internet required, immune to campus Wi-Fi / SSL blocks).
- *    - Automatically checks for local MongoDB server (mongodb://127.0.0.1:27017/neighborlink).
- *    - Falls back to built-in MongoMemoryServer (zero install required).
- *    - Auto-seeds complete demo data and accounts on launch.
- * 2. Cloud Mode (USE_OFFLINE_DB=false):
- *    - Connects to MongoDB Atlas with fast timeout.
- *    - Gracefully and seamlessly falls back to offline local database if Atlas is unreachable or TLS fails.
+ * 1. Cloud Mode (Vercel / Production / Atlas):
+ *    - Reuses existing connection across serverless invocations.
+ *    - Connects cleanly to MongoDB Atlas.
+ * 2. Offline Mode (Local development only):
+ *    - Falls back to local/in-memory Mongo if running locally without Atlas.
  */
 const mongoose = require('mongoose');
 
@@ -30,12 +27,11 @@ async function seedIfEmpty() {
 }
 
 async function startLocalDatabase() {
-  // Option A: Check if standard local MongoDB is running on port 27017
   const localDefaultUri = 'mongodb://127.0.0.1:27017/neighborlink';
   try {
     console.log('[DB] Checking for local MongoDB service on port 27017...');
     await mongoose.connect(localDefaultUri, {
-      serverSelectionTimeoutMS: 1200,
+      serverSelectionTimeoutMS: 1500,
     });
     console.log(`[DB] ✓ Connected to local MongoDB: ${localDefaultUri}`);
     await seedIfEmpty();
@@ -44,7 +40,6 @@ async function startLocalDatabase() {
     // Port 27017 not running, fallback to MongoMemoryServer
   }
 
-  // Option B: High-speed in-memory MongoDB (zero install required)
   try {
     console.log('[DB] Starting built-in high-speed local Mongo instance (offline mode)...');
     const { MongoMemoryServer } = require('mongodb-memory-server');
@@ -53,7 +48,6 @@ async function startLocalDatabase() {
 
     await mongoose.connect(localUri);
     console.log(`[DB] ✓ Offline local database active at: ${localUri}`);
-
     await seedIfEmpty();
   } catch (memErr) {
     console.error('[DB] Failed to start local Mongo instance:', memErr.message);
@@ -62,46 +56,59 @@ async function startLocalDatabase() {
 }
 
 async function connectDB() {
+  if (mongoose.connection.readyState === 1) {
+    return;
+  }
+
+  const isVercel = Boolean(process.env.VERCEL);
   const useOffline = process.env.USE_OFFLINE_DB === 'true';
   const uri = process.env.MONGODB_URI;
 
   mongoose.set('strictQuery', true);
 
-  // If user explicitly configured offline mode, or no Atlas URI provided
-  if (useOffline || !uri) {
-    console.log('[DB] 🔌 Running in OFFLINE mode (bypassing cloud Atlas & campus network restrictions)...');
-    await startLocalDatabase();
-    return;
-  }
+  // In production / Vercel, offline in-memory server is not supported
+  if (isVercel || process.env.NODE_ENV === 'production') {
+    if (!uri) {
+      throw new Error('[DB] MONGODB_URI environment variable is missing in Vercel settings.');
+    }
 
-  // Cloud Atlas connection attempt
-  try {
-    console.log('[DB] Attempting connection to MongoDB Atlas...');
+    console.log('[DB] Connecting to MongoDB Atlas...');
     await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 2500, // fast timeout to prevent app hanging
-      connectTimeoutMS: 3000,
-      socketTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
     });
     console.log(`[DB] ✓ Connected to MongoDB Atlas: ${mongoose.connection.host}`);
     await seedIfEmpty();
     return;
+  }
+
+  // Local development logic
+  if (useOffline || !uri) {
+    console.log('[DB] 🔌 Running in OFFLINE mode...');
+    await startLocalDatabase();
+    return;
+  }
+
+  try {
+    console.log('[DB] Attempting connection to MongoDB Atlas...');
+    await mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 3000,
+      connectTimeoutMS: 4000,
+    });
+    console.log(`[DB] ✓ Connected to MongoDB Atlas: ${mongoose.connection.host}`);
+    await seedIfEmpty();
   } catch (err) {
     console.warn(`[DB] ⚠️ MongoDB Atlas connection error: ${err.message}`);
-    console.warn('[DB] 💡 Cause: Public IP not whitelisted in Atlas, or campus firewall blocked TLS handshake.');
-    console.warn('[DB] 🚀 Switching to offline local database so app works instantly...');
-
-    // Disconnect any failed/dangling connection before local connect
+    console.warn('[DB] 🚀 Switching to offline local database for development...');
     try {
       await mongoose.disconnect();
     } catch (e) {}
-
     await startLocalDatabase();
   }
-
-  mongoose.connection.on('disconnected', () => {
-    console.warn('[DB] MongoDB disconnected.');
-  });
 }
 
-module.exports = connectDB;
+mongoose.connection.on('disconnected', () => {
+  console.warn('[DB] MongoDB disconnected.');
+});
 
+module.exports = connectDB;
