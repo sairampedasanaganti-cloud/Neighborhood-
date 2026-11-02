@@ -52,6 +52,7 @@ app.use(
       if (!origin) return callback(null, true);
       if (
         allowedOrigins.includes(origin) ||
+        /\.vercel\.app$/.test(origin) ||
         /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
       ) {
         return callback(null, origin);
@@ -90,13 +91,11 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-// On Vercel, don't call listen() -- the platform handles it
-if (!process.env.VERCEL) {
-  async function start() {
-    await connectDB();
-    app.listen(PORT, () => console.log(`[Server] NeighborLink API listening on port ${PORT}`));
-  }
-  start();
+async function start() {
+  await connectDB();
+  app.listen(PORT, () => console.log(`[Server] NeighborLink API listening on port ${PORT}`));
 }
+
+start();
 
 module.exports = app; // exported for supertest & Vercel serverless
